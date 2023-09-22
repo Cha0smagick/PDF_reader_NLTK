@@ -9,7 +9,6 @@ nltk.download('stopwords')
 from nltk.tokenize import word_tokenize, sent_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
-import freeGPT
 import re
 
 class PDFReaderApp(QMainWindow):
@@ -102,20 +101,7 @@ class PDFReaderApp(QMainWindow):
                     else:
                         break  # Romper si excede la longitud máxima
 
-            # Llamada a FreeGPT para mejorar la respuesta
-            improved_response = self.improve_response(response)
-
-            self.answer_output.setPlainText(improved_response)
-
-    def improve_response(self, response):
-        # Llamada a FreeGPT para mejorar la respuesta
-        try:
-            resp = freeGPT.gpt4.Completion().create(response)
-            formatted_resp = re.sub(r'\\u([0-9a-fA-F]{4})', lambda x: chr(int(x.group(1), 16)), resp)
-            return formatted_resp
-        except Exception as e:
-            print("Error al llamar a FreeGPT:", e)
-            return response
+            self.answer_output.setPlainText(response)
 
 def main():
     app = QApplication(sys.argv)
