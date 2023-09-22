@@ -4,8 +4,8 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
 import fitz  # PyMuPDF
 import nltk
-import time  # Agregamos time
-import codecs
+import time
+import codecs  # Utilizamos codecs
 from gpt4free import you
 from nltk.tokenize import word_tokenize, sent_tokenize
 from nltk.corpus import stopwords
@@ -119,6 +119,9 @@ class PDFReaderApp(QMainWindow):
             # Obtener respuesta del modelo GPT-4 Free
             prompt = f"Toma la siguiente información y reescribe uno o más párrafos respondiendo la pregunta del usuario:\n\n{response}"
             respuesta_bot = self.obtener_respuesta(prompt)
+
+            # Utilizar codecs para manejar caracteres especiales
+            respuesta_bot = codecs.decode(respuesta_bot, 'unicode_escape')
 
             self.answer_output.setPlainText(respuesta_bot)
 
