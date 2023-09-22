@@ -1,5 +1,5 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QMainWindow, QTextEdit, QVBoxLayout, QPushButton, QWidget, QFileDialog, QLabel
+from PyQt5.QtWidgets import QApplication, QMainWindow, QTextEdit, QVBoxLayout, QPushButton, QWidget, QFileDialog, QLabel, QTabWidget
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
 import fitz  # PyMuPDF
@@ -20,59 +20,80 @@ class PDFReaderApp(QMainWindow):
 
     def initUI(self):
         self.setWindowTitle('PDF Reader')
-        self.setGeometry(100, 100, 800, 600)
+        self.setGeometry(100, 100, 1000, 600)
 
-        self.central_widget = QWidget()
+        self.central_widget = QTabWidget()  # Utilizamos un QTabWidget para tener dos pestañas
         self.setCentralWidget(self.central_widget)
 
-        layout = QVBoxLayout()
+        # Pestaña para la lectura del PDF
+        pdf_tab = QWidget()
+        layout_pdf = QVBoxLayout()
 
-        # Botón para cargar el PDF
-        self.load_button = QPushButton('Cargar PDF', self)
-        self.load_button.clicked.connect(self.load_pdf)
-        layout.addWidget(self.load_button)
+        # Botón para cargar el PDF o archivo de texto
+        self.load_button = QPushButton('Cargar PDF o Texto', self)
+        self.load_button.clicked.connect(self.load_file)
+        layout_pdf.addWidget(self.load_button)
 
-        # Espacio de lectura del PDF
+        # Espacio de lectura del PDF o archivo de texto
         self.pdf_text = QTextEdit(self)
         self.pdf_text.setReadOnly(True)
-        layout.addWidget(self.pdf_text)
+        layout_pdf.addWidget(self.pdf_text)
+
+        pdf_tab.setLayout(layout_pdf)
+
+        # Pestaña para la respuesta
+        answer_tab = QWidget()
+        layout_answer = QVBoxLayout()
 
         # Espacio para ingresar la pregunta
         self.question_label = QLabel('Ingrese su pregunta:', self)
-        layout.addWidget(self.question_label)
+        layout_answer.addWidget(self.question_label)
 
         self.question_input = QTextEdit(self)
-        layout.addWidget(self.question_input)
+        layout_answer.addWidget(self.question_input)
 
         # Botón para obtener la respuesta
         self.answer_button = QPushButton('Obtener Respuesta', self)
         self.answer_button.clicked.connect(self.answer_question)
-        layout.addWidget(self.answer_button)
+        layout_answer.addWidget(self.answer_button)
 
         # Espacio para mostrar la respuesta organizada y resumida
         self.answer_label = QLabel('Respuesta:', self)
-        layout.addWidget(self.answer_label)
+        layout_answer.addWidget(self.answer_label)
 
         self.answer_output = QTextEdit(self)
         self.answer_output.setReadOnly(True)
-        layout.addWidget(self.answer_output)
+        layout_answer.addWidget(self.answer_output)
 
-        self.central_widget.setLayout(layout)
+        answer_tab.setLayout(layout_answer)
+
+        # Agregar las pestañas al QTabWidget
+        self.central_widget.addTab(pdf_tab, "PDF / Texto")
+        self.central_widget.addTab(answer_tab, "Respuesta")
 
         self.pdf_document = None
         self.text_data = None
 
-    def load_pdf(self):
+    def load_file(self):
         options = QFileDialog.Options()
-        file_path, _ = QFileDialog.getOpenFileName(self, 'Cargar PDF', '', 'PDF Files (*.pdf);;All Files (*)', options=options)
+        file_path, _ = QFileDialog.getOpenFileName(self, 'Cargar PDF o Texto', '', 'Archivos de Texto (*.pdf *.txt);;Todos los Archivos (*)', options=options)
 
         if file_path:
-            self.pdf_document = fitz.open(file_path)
-            text = ''
-            for page in self.pdf_document:
-                text += page.get_text()
-            self.pdf_text.setPlainText(text)
-            self.text_data = sent_tokenize(text)
+            if file_path.endswith('.pdf'):
+                self.load_pdf(file_path)
+            else:
+                with open(file_path, 'r', encoding='utf-8') as file:
+                    text = file.read()
+                    self.pdf_text.setPlainText(text)
+                    self.text_data = sent_tokenize(text)
+
+    def load_pdf(self, file_path):
+        self.pdf_document = fitz.open(file_path)
+        text = ''
+        for page in self.pdf_document:
+            text += page.get_text()
+        self.pdf_text.setPlainText(text)
+        self.text_data = sent_tokenize(text)
 
     def preprocess_text(self, text):
         # Tokenización, eliminación de stopwords y stemming
@@ -117,7 +138,7 @@ class PDFReaderApp(QMainWindow):
                         break  # Romper si excede la longitud máxima
 
             # Obtener respuesta del modelo GPT-4 Free
-            prompt = f"Toma la siguiente información y reescribe uno o más párrafos respondiendo la pregunta del usuario:\n\n{response}"
+            prompt = f"Toma la siguiente información y reescribe uno o más párrafos respondiendo la pregunta del usuario, extendiendo el tema o la solicitud con tu conocimiento propio de ser posible. Haz el texto lo mas claro y largo posible, con un tono de un expereto resolviendo preguntas sobre un tema:\n\n{response}"
             respuesta_bot = self.obtener_respuesta(prompt)
 
             # Utilizar codecs para manejar caracteres especiales
