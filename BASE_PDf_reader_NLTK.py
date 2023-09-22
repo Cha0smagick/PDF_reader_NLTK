@@ -4,8 +4,9 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
 import fitz  # PyMuPDF
 import nltk
-nltk.download('punkt')
-nltk.download('stopwords')
+import time  # Agregamos time
+import codecs
+from gpt4free import you
 from nltk.tokenize import word_tokenize, sent_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
@@ -82,13 +83,27 @@ class PDFReaderApp(QMainWindow):
         words = [word for word in words if word not in stop_words]
         return " ".join(words)
 
+    def obtener_respuesta(self, prompt):
+        while True:
+            response = you.Completion.create(
+                prompt=prompt,
+                chat=self.chat
+            )
+            text = response.text.strip()
+            if text != "Unable to fetch the response, Please try again.":
+                return text
+
+            time.sleep(5)  # Espera 5 segundos antes de intentar nuevamente
+
     def answer_question(self):
         if self.pdf_document and self.text_data:
             question = self.question_input.toPlainText()
             question = self.preprocess_text(question)
             question_keywords = set(question.split())  # Palabras clave de la pregunta
 
-            # Buscar frases y párrafos que contienen palabras clave
+            # Inicializar el chat vacío
+            self.chat = []
+
             response = ""
             max_output_length = 1000  # Longitud máxima del output
             current_length = 0
@@ -101,7 +116,11 @@ class PDFReaderApp(QMainWindow):
                     else:
                         break  # Romper si excede la longitud máxima
 
-            self.answer_output.setPlainText(response)
+            # Obtener respuesta del modelo GPT-4 Free
+            prompt = f"Toma la siguiente información y reescribe uno o más párrafos respondiendo la pregunta del usuario:\n\n{response}"
+            respuesta_bot = self.obtener_respuesta(prompt)
+
+            self.answer_output.setPlainText(respuesta_bot)
 
 def main():
     app = QApplication(sys.argv)
