@@ -1,5 +1,5 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QMainWindow, QTextEdit, QVBoxLayout, QPushButton, QWidget, QFileDialog
+from PyQt5.QtWidgets import QApplication, QMainWindow, QTextEdit, QVBoxLayout, QPushButton, QWidget, QFileDialog, QLabel
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
 import fitz  # PyMuPDF
@@ -8,6 +8,8 @@ from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+import freeGPT
+import re
 
 class PDFReaderApp(QMainWindow):
     def __init__(self):
@@ -24,24 +26,35 @@ class PDFReaderApp(QMainWindow):
 
         layout = QVBoxLayout()
 
-        self.pdf_text = QTextEdit(self)
-        self.pdf_text.setReadOnly(True)
-        layout.addWidget(self.pdf_text)
-
-        self.chat_input = QTextEdit(self)
-        layout.addWidget(self.chat_input)
-
-        self.answer_output = QTextEdit(self)
-        self.answer_output.setReadOnly(True)
-        layout.addWidget(self.answer_output)
-
+        # Botón para cargar el PDF
         self.load_button = QPushButton('Cargar PDF', self)
         self.load_button.clicked.connect(self.load_pdf)
         layout.addWidget(self.load_button)
 
-        self.answer_button = QPushButton('Responder', self)
+        # Espacio de lectura del PDF
+        self.pdf_text = QTextEdit(self)
+        self.pdf_text.setReadOnly(True)
+        layout.addWidget(self.pdf_text)
+
+        # Espacio para ingresar la pregunta
+        self.question_label = QLabel('Ingrese su pregunta:', self)
+        layout.addWidget(self.question_label)
+
+        self.question_input = QTextEdit(self)
+        layout.addWidget(self.question_input)
+
+        # Botón para obtener la respuesta
+        self.answer_button = QPushButton('Obtener Respuesta', self)
         self.answer_button.clicked.connect(self.answer_question)
         layout.addWidget(self.answer_button)
+
+        # Espacio para mostrar la respuesta
+        self.answer_label = QLabel('Respuesta:', self)
+        layout.addWidget(self.answer_label)
+
+        self.answer_output = QTextEdit(self)
+        self.answer_output.setReadOnly(True)
+        layout.addWidget(self.answer_output)
 
         self.central_widget.setLayout(layout)
 
@@ -71,7 +84,7 @@ class PDFReaderApp(QMainWindow):
 
     def answer_question(self):
         if self.pdf_document and self.text_data:
-            question = self.chat_input.toPlainText()
+            question = self.question_input.toPlainText()
             question = self.preprocess_text(question)
 
             # Preprocesamiento del texto del PDF
@@ -87,11 +100,29 @@ class PDFReaderApp(QMainWindow):
             # Cálculo de similitud de coseno entre la pregunta y las oraciones
             cosine_similarities = cosine_similarity(question_tfidf, tfidf_matrix)
 
-            # Obtención de la oración más similar
-            most_similar_sentence_index = cosine_similarities.argmax()
-            answer = self.text_data[most_similar_sentence_index]
+            # Obtención de las oraciones más similares (por ejemplo, las 3 mejores)
+            num_best_sentences = 3
+            most_similar_sentence_indices = cosine_similarities.argsort()[0][-num_best_sentences:][::-1]
 
-            self.answer_output.setPlainText(answer)
+            # Construcción de la respuesta con contexto
+            response = ""
+            for index in most_similar_sentence_indices:
+                response += self.text_data[index] + "\n"
+
+            # Llamada a FreeGPT para mejorar la respuesta
+            improved_response = self.improve_response(response)
+
+            self.answer_output.setPlainText(improved_response)
+
+    def improve_response(self, response):
+        # Llamada a FreeGPT para mejorar la respuesta
+        try:
+            resp = freeGPT.gpt4.Completion().create(response)
+            formatted_resp = re.sub(r'\\u([0-9a-fA-F]{4})', lambda x: chr(int(x.group(1), 16)), resp)
+            return formatted_resp
+        except Exception as e:
+            print("Error al llamar a FreeGPT:", e)
+            return response
 
 def main():
     app = QApplication(sys.argv)
