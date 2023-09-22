@@ -3,11 +3,12 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QTextEdit, QVBoxLayout, Q
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
 import fitz  # PyMuPDF
-from nltk.tokenize import sent_tokenize, word_tokenize
+import nltk
+nltk.download('punkt')
+nltk.download('stopwords')
+from nltk.tokenize import word_tokenize, sent_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 import freeGPT
 import re
 
@@ -48,7 +49,7 @@ class PDFReaderApp(QMainWindow):
         self.answer_button.clicked.connect(self.answer_question)
         layout.addWidget(self.answer_button)
 
-        # Espacio para mostrar la respuesta
+        # Espacio para mostrar la respuesta organizada y resumida
         self.answer_label = QLabel('Respuesta:', self)
         layout.addWidget(self.answer_label)
 
@@ -60,9 +61,6 @@ class PDFReaderApp(QMainWindow):
 
         self.pdf_document = None
         self.text_data = None
-        self.preprocessed_text_data = None  # Almacena el texto del PDF preprocesado
-        self.tfidf_vectorizer = None  # Almacena el vectorizador TF-IDF
-        self.tfidf_matrix = None  # Almacena la matriz TF-IDF
 
     def load_pdf(self):
         options = QFileDialog.Options()
@@ -75,11 +73,6 @@ class PDFReaderApp(QMainWindow):
                 text += page.get_text()
             self.pdf_text.setPlainText(text)
             self.text_data = sent_tokenize(text)
-            self.preprocessed_text_data = [self.preprocess_text(sentence) for sentence in self.text_data]
-
-            # Calcula la matriz TF-IDF una sola vez
-            self.tfidf_vectorizer = TfidfVectorizer()
-            self.tfidf_matrix = self.tfidf_vectorizer.fit_transform(self.preprocessed_text_data)
 
     def preprocess_text(self, text):
         # Tokenización, eliminación de stopwords y stemming
@@ -94,21 +87,20 @@ class PDFReaderApp(QMainWindow):
         if self.pdf_document and self.text_data:
             question = self.question_input.toPlainText()
             question = self.preprocess_text(question)
+            question_keywords = set(question.split())  # Palabras clave de la pregunta
 
-            # TF-IDF Vectorization de la pregunta
-            question_tfidf = self.tfidf_vectorizer.transform([question])
-
-            # Cálculo de similitud de coseno entre la pregunta y las oraciones
-            cosine_similarities = cosine_similarity(question_tfidf, self.tfidf_matrix)
-
-            # Obtención de las oraciones más similares (por ejemplo, las 3 mejores)
-            num_best_sentences = 3
-            most_similar_sentence_indices = cosine_similarities.argsort()[0][-num_best_sentences:][::-1]
-
-            # Construcción de la respuesta con contexto
+            # Buscar frases y párrafos que contienen palabras clave
             response = ""
-            for index in most_similar_sentence_indices:
-                response += self.text_data[index] + "\n"
+            max_output_length = 1000  # Longitud máxima del output
+            current_length = 0
+
+            for paragraph in self.text_data:
+                if any(keyword in paragraph for keyword in question_keywords):
+                    if current_length + len(paragraph) + 2 <= max_output_length:
+                        response += paragraph + "\n\n"
+                        current_length += len(paragraph) + 2
+                    else:
+                        break  # Romper si excede la longitud máxima
 
             # Llamada a FreeGPT para mejorar la respuesta
             improved_response = self.improve_response(response)
