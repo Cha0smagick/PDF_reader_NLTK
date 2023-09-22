@@ -60,6 +60,9 @@ class PDFReaderApp(QMainWindow):
 
         self.pdf_document = None
         self.text_data = None
+        self.preprocessed_text_data = None  # Almacena el texto del PDF preprocesado
+        self.tfidf_vectorizer = None  # Almacena el vectorizador TF-IDF
+        self.tfidf_matrix = None  # Almacena la matriz TF-IDF
 
     def load_pdf(self):
         options = QFileDialog.Options()
@@ -72,6 +75,11 @@ class PDFReaderApp(QMainWindow):
                 text += page.get_text()
             self.pdf_text.setPlainText(text)
             self.text_data = sent_tokenize(text)
+            self.preprocessed_text_data = [self.preprocess_text(sentence) for sentence in self.text_data]
+
+            # Calcula la matriz TF-IDF una sola vez
+            self.tfidf_vectorizer = TfidfVectorizer()
+            self.tfidf_matrix = self.tfidf_vectorizer.fit_transform(self.preprocessed_text_data)
 
     def preprocess_text(self, text):
         # Tokenización, eliminación de stopwords y stemming
@@ -87,18 +95,11 @@ class PDFReaderApp(QMainWindow):
             question = self.question_input.toPlainText()
             question = self.preprocess_text(question)
 
-            # Preprocesamiento del texto del PDF
-            preprocessed_text_data = [self.preprocess_text(sentence) for sentence in self.text_data]
-
-            # TF-IDF Vectorization
-            tfidf_vectorizer = TfidfVectorizer()
-            tfidf_matrix = tfidf_vectorizer.fit_transform(preprocessed_text_data)
-
             # TF-IDF Vectorization de la pregunta
-            question_tfidf = tfidf_vectorizer.transform([question])
+            question_tfidf = self.tfidf_vectorizer.transform([question])
 
             # Cálculo de similitud de coseno entre la pregunta y las oraciones
-            cosine_similarities = cosine_similarity(question_tfidf, tfidf_matrix)
+            cosine_similarities = cosine_similarity(question_tfidf, self.tfidf_matrix)
 
             # Obtención de las oraciones más similares (por ejemplo, las 3 mejores)
             num_best_sentences = 3
