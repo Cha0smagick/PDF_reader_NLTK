@@ -2,12 +2,17 @@ import sys
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTextEdit, QVBoxLayout, QPushButton, QWidget, QFileDialog, QLabel, QTabWidget
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
-import fitz  # PyMuPDF
+import fitz  # Reemplaza 'PyMuPDF' con 'fitz'
 import nltk
-import codecs  # Utilizamos codecs
 from nltk.tokenize import word_tokenize, sent_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
+
+# Asegúrate de haber descargado los paquetes requeridos de nltk
+nltk.download('punkt')
+nltk.download('stopwords')
+nltk.download('maxent_ne_chunker')
+nltk.download('words')
 
 class PDFReaderApp(QMainWindow):
     def __init__(self):
@@ -19,7 +24,7 @@ class PDFReaderApp(QMainWindow):
         self.setWindowTitle('PDF Reader')
         self.setGeometry(100, 100, 1000, 600)
 
-        self.central_widget = QTabWidget()  # Utilizamos un QTabWidget para tener dos pestañas
+        self.central_widget = QTabWidget()
         self.setCentralWidget(self.central_widget)
 
         # Pestaña para la lectura del PDF
@@ -73,7 +78,7 @@ class PDFReaderApp(QMainWindow):
 
     def load_file(self):
         options = QFileDialog.Options()
-        file_path, _ = QFileDialog.getOpenFileName(self, 'Cargar PDF o Texto', '', 'Archivos de Texto (*.pdf *.txt);;Todos los Archivos (*)', options=options)
+        file_path, _ = QFileDialog.getOpenFileName(self, 'Cargar PDF o Texto', '', 'Archivos de Texto (*.pdf .txt);;Todos los Archivos ()', options=options)
 
         if file_path:
             if file_path.endswith('.pdf'):
@@ -85,9 +90,9 @@ class PDFReaderApp(QMainWindow):
                     self.text_data = sent_tokenize(text)
 
     def load_pdf(self, file_path):
-        self.pdf_document = fitz.open(file_path)
+        self.pdf_document = fitz.open(file_path)  # Cambia 'PyMuPDF' a 'fitz'
         text = ''
-        for page in self.pdf_document:
+        for page in self.pdf_document.pages():
             text += page.get_text()
         self.pdf_text.setPlainText(text)
         self.text_data = sent_tokenize(text)
@@ -101,23 +106,44 @@ class PDFReaderApp(QMainWindow):
         words = [word for word in words if word not in stop_words]
         return " ".join(words)
 
+    def extract_named_entities(self, text):
+        ne_tree = nltk.ne_chunk(nltk.pos_tag(word_tokenize(text)))
+        named_entities = set()
+        for subtree in ne_tree:
+            if isinstance(subtree, nltk.tree.Tree):  
+                entity = " ".join([leaf[0] for leaf in subtree.leaves()])
+                named_entities.add(entity)
+        return named_entities
+
     def answer_question(self):
-        if self.pdf_document and self.text_data:
+        if self.text_data:
             question = self.question_input.toPlainText()
-            question = self.preprocess_text(question)
-            question_keywords = set(question.split())  # Palabras clave de la pregunta
+            question_preprocessed = self.preprocess_text(question)
+            question_keywords = set(question_preprocessed.split())
+
+            named_entities = self.extract_named_entities(question)
+            question_keywords.update(named_entities)
 
             response = ""
-            max_output_length = 1000  # Longitud máxima del output
+            max_output_length = 1000  
             current_length = 0
 
             for paragraph in self.text_data:
-                if any(keyword in paragraph for keyword in question_keywords):
-                    if current_length + len(paragraph) + 2 <= max_output_length:
-                        response += paragraph + "\n\n"
-                        current_length += len(paragraph) + 2
-                    else:
-                        break  # Romper si excede la longitud máxima
+                paragraph_preprocessed = self.preprocess_text(paragraph)
+                paragraph_keywords = set(paragraph_preprocessed.split())
+                common_keywords = question_keywords.intersection(paragraph_keywords)
+
+                if common_keywords:
+                    sentences = sent_tokenize(paragraph)
+                    relevant_sentences = [sentence for sentence in sentences if any(keyword in sentence for keyword in question_keywords)]
+
+                    for sentence in relevant_sentences:
+                        sentence_length = len(sentence) + 2
+                        if current_length + sentence_length <= max_output_length:
+                            response += sentence + "\n\n"
+                            current_length += sentence_length
+                        else:
+                            break  
 
             self.answer_output.setPlainText(response)
 
