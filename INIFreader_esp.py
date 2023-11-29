@@ -140,10 +140,9 @@ class PDFReaderApp(QMainWindow):
             question_keywords.update(named_entities)
 
             chatbot_input = (
-                "act as a paragraph rewriter. use cohesion, semantic and a cientific style."
-                " I will provide you with information and a question about what I am looking for, and you must return the answer to the question"
-                " received in a paragraph in structured and readable format, resulting in an answer to the question I am asking.\n\n"
-                "PDF Information:\n" + " ".join(self.text_data) + "\n\nUser's Question:\n" + question 
+                "act as a investigator expert in writing. use cohesion, semantic and a cientific style to write. please answer the next question: " + question + "." +
+                " I will also provide you with information and context to solve the question and you must return the answer to the question in a paragraph briefing the information provided" +
+                "this is the information you need to take into account to answer " + question + ": " + " ".join(self.text_data)
             )
 
             try:
