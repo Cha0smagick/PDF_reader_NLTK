@@ -128,10 +128,9 @@ def main():
 
                 if completion.result is not None:
                     translated_chunk = completion.result
+                    # Traducir la respuesta parcial al español antes de agregarla al resultado final
+                    translated_chunk = translate_text(translated_chunk, target_language='es')
                     translated_output += translated_chunk
-
-            # Traducir la respuesta completa al español antes de mostrarla
-            translated_output = translate_text(translated_output, target_language='es')
 
             st.subheader('Respuesta')
             st.text_area("Respuesta", translated_output, height=200)
