@@ -8,6 +8,7 @@ from googletrans import Translator
 import google.generativeai as palm
 from io import BytesIO
 
+nltk.download('averaged_perceptron_tagger')
 # Configurar la clave de la API de Google
 palm.configure(api_key='YOUR_GOOGLE_API_KEY_HERE')
 models = [m for m in palm.list_models() if 'generateText' in m.supported_generation_methods]
