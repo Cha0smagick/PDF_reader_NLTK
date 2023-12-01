@@ -116,8 +116,8 @@ def main():
         chatbot_input = (
             "Please act as a INIF entrerprises chatbot personal assistant that answers questions with natural language with an Amiable yet professional tone and always ready to respond. I'm going to provide you with information and a question. here is the question: " + question +
             " which you should respond to considering the context i give you above. You need to give me one or more paragraphs by rearranging the information I provide, attempting to answer the question and "
-            "I will also provide you with information and context to solve the question, and you must return the answer in a paragraph briefing the information provided. "
-            "adding any other knowledge you have on the topic. The context information is as follows: " + text_data
+            "I will also provide you with information and context to solve the question, and you must return the answer in a paragraph briefing the information provided, adding any other knowledge you have on the topic. "
+            " The context information is as follows: " + text_data
         )
 
         try:
