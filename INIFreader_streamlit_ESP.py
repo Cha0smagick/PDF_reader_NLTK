@@ -10,23 +10,23 @@ from io import BytesIO
 
 nltk.download('averaged_perceptron_tagger')
 
-# Configurar la clave de la API de Google
-palm.configure(api_key='AIzaSyCezVerubEzQc9JHz3V8hofpAlSIJXGxFQ')
+# Configure Google API key
+palm.configure(api_key='AIzaSyCezVerubEzQc9JHz3V8hofpAlSIJXGxFQ')  # Replace with your actual API key
 models = [m for m in palm.list_models() if 'generateText' in m.supported_generation_methods]
 
 if not models:
-    st.error("No hay modelos disponibles para la generación de texto. Verifica tu configuración o vuelve a intentarlo más tarde.")
+    st.error("No models available for text generation. Check your configuration or try again later.")
     st.stop()
 
 model = models[0].name
 
-# Asegúrate de haber descargado los paquetes nltk y googletrans requeridos
+# Download necessary NLTK and Googletrans packages
 nltk.download('punkt')
 nltk.download('stopwords')
 nltk.download('maxent_ne_chunker')
 nltk.download('words')
 
-# Configurar la clave de la API de Google Translate
+# Configure Google Translate API key
 translator = Translator()
 
 def preprocess_text(text):
@@ -46,7 +46,7 @@ def extract_named_entities(text):
                 entity = " ".join([leaf[0] for leaf in subtree.leaves()])
                 named_entities.add(entity)
     except Exception as e:
-        st.error(f"Error al extraer entidades nombradas: {str(e)}")
+        st.error(f"Error extracting named entities: {str(e)}")
     return named_entities
 
 def translate_text(text, target_language='en'):
@@ -54,55 +54,59 @@ def translate_text(text, target_language='en'):
         translation = translator.translate(text, dest=target_language)
         return translation.text
     except Exception as e:
-        st.error(f"Error de traducción: {str(e)}")
-        return f"Error de traducción: {str(e)}"
+        st.error(f"Translation error: {str(e)}")
+        return f"Translation error: {str(e)}"
 
-def load_pdf(file_content):
+def clean_special_characters(text):
+    # Remove non-English special characters
+    cleaned_text = ''.join(char if ord(char) < 128 else ' ' for char in text)
+    return cleaned_text
+
+def load_text(file_content, file_type):
     text = ''
     try:
-        pdf_reader = PyPDF2.PdfReader(BytesIO(file_content))
-        num_pages = len(pdf_reader.pages)
-        
-        for page_num in range(num_pages):
-            text += pdf_reader.pages[page_num].extract_text()
-            text += '\n'  # Agregar un salto de línea entre páginas
-    except Exception as e:
-        st.error(f"Error al cargar el archivo PDF: {str(e)}")
+        if file_type == "application/pdf":
+            pdf_reader = PyPDF2.PdfReader(BytesIO(file_content))
+            num_pages = len(pdf_reader.pages)
+            
+            for page_num in range(num_pages):
+                text += pdf_reader.pages[page_num].extract_text()
+                text += '\n'  # Add a line break between pages
+        else:
+            text = file_content.decode("utf-8")
+    except UnicodeDecodeError:
+        st.error("Error decoding the file. Make sure the file is in text format.")
     return text
 
 def main():
     st.title('PDF Reader with Streamlit')
 
-    # Tab for PDF reading
-    st.sidebar.subheader('PDF / Text')
+    # Tab for text reading
+    st.sidebar.subheader('Text')
 
-    # Use st.file_uploader to directly handle the file
-    uploaded_file = st.sidebar.file_uploader("Cargar PDF o archivo de texto", type=["pdf", "txt"])
+    # Use st.file_uploader to handle the file
+    uploaded_file = st.sidebar.file_uploader("Upload PDF or text file", type=["pdf", "txt", "doc", "docx"])
+    
     if uploaded_file is not None:
         try:
-            if uploaded_file.type == "application/pdf":
-                file_content = uploaded_file.getvalue()
-                text_data = load_pdf(file_content)
-            elif uploaded_file.type == "text/plain":
-                file_content = uploaded_file.getvalue()
-                text_data = file_content.decode("utf-8")
-            else:
-                st.error("Formato de archivo no válido. Por favor, carga un archivo PDF o de texto.")
-                st.stop()
+            file_content = uploaded_file.getvalue()
+            file_type = uploaded_file.type
+
+            text_data = clean_special_characters(load_text(file_content, file_type))
         except UnicodeDecodeError:
-            st.error("Error al decodificar el archivo. Asegúrate de que el archivo esté en formato de texto.")
+            st.error("Error decoding the file. Make sure the file is in text format.")
             st.stop()
 
-        st.subheader('Contenido del PDF / Texto')
-        st.text_area("Texto", text_data, height=500)
+        st.subheader('Text Content')
+        st.text_area("Text", text_data, height=500)
 
     # Tab for the answer
-    st.sidebar.subheader('Respuesta')
+    st.sidebar.subheader('Response')
 
     # Space to enter the question
-    question = st.sidebar.text_area('Ingresa tu pregunta')
+    question = st.sidebar.text_area('Enter your question')
 
-    if st.sidebar.button('Obtener Respuesta'):
+    if st.sidebar.button('Get Answer'):
         question_preprocessed = preprocess_text(question)
         question_keywords = set(question_preprocessed.split())
 
@@ -110,9 +114,10 @@ def main():
         question_keywords.update(named_entities)
 
         chatbot_input = (
-            "act as a investigator expert in writing. use cohesion, semantic and a cientific style to write. please answer the next question: " + question + "." +
-            " I will also provide you with information and context to solve the question and you must return the answer to the question in a paragraph briefing the information provided" +
-            "this is the information you need to take into account to answer " + question + ": " + text_data
+            "Please act as a INIF entrerprises chatbot personal assistant that answers questions with natural language with an Amiable yet professional tone and always ready to respond. I'm going to provide you with information and a question. here is the question: " + question +
+            " which you should respond to considering the context i give you above. You need to give me one or more paragraphs by rearranging the information I provide, attempting to answer the question and "
+            "I will also provide you with information and context to solve the question, and you must return the answer in a paragraph briefing the information provided. "
+            "adding any other knowledge you have on the topic. The context information is as follows: " + text_data
         )
 
         try:
@@ -136,11 +141,11 @@ def main():
                     translated_chunk = completion.result
                     translated_output += translated_chunk
 
-            # Traducir la respuesta completa al español antes de mostrarla
+            # Translate the complete response to Spanish before displaying
             translated_output = translate_text(translated_output, target_language='es')
 
-            st.subheader('Respuesta')
-            st.text_area("Respuesta", translated_output, height=200)
+            st.subheader('Response')
+            st.text_area("Response", translated_output, height=200)
 
         except Exception as e:
             st.error(f"Error: {str(e)}")
