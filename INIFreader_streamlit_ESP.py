@@ -11,7 +11,7 @@ from io import BytesIO
 nltk.download('averaged_perceptron_tagger')
 
 # Configure Google API key
-palm.configure(api_key='YOUR_GOOGLE_API_KEY_HERE')  # Replace with your actual API key
+palm.configure(api_key='AIzaSyCezVerubEzQc9JHz3V8hofpAlSIJXGxFQ')  # Replace with your actual API key
 models = [m for m in palm.list_models() if 'generateText' in m.supported_generation_methods]
 
 if not models:
@@ -68,7 +68,7 @@ def load_text(file_content, file_type):
         if file_type == "application/pdf":
             pdf_reader = PyPDF2.PdfReader(BytesIO(file_content))
             num_pages = len(pdf_reader.pages)
-            
+
             for page_num in range(num_pages):
                 text += pdf_reader.pages[page_num].extract_text()
                 text += '\n'  # Add a line break between pages
@@ -86,7 +86,7 @@ def main():
 
     # Use st.file_uploader to handle the file
     uploaded_file = st.sidebar.file_uploader("Upload PDF or text file", type=["pdf", "txt", "doc", "docx"])
-    
+
     if uploaded_file is not None:
         try:
             file_content = uploaded_file.getvalue()
@@ -114,10 +114,10 @@ def main():
         question_keywords.update(named_entities)
 
         chatbot_input = (
-            "Please act as a INIF entrerprises chatbot personal assistant that answers questions with natural language with an Amiable yet professional tone and always ready to respond. I'm going to provide you with information and a question. here is the question: " + question +
-            " which you should respond to considering the context i give you above. You need to give me one or more paragraphs by rearranging the information I provide, attempting to answer the question and "
-            "I will also provide you with information and context to solve the question, and you must return the answer in a paragraph briefing the information provided, adding any other knowledge you have on the topic. "
-            " The context information is as follows: " + text_data
+            "Please act as a INIF enterprises chatbot personal assistant that answers questions with natural language with an Amiable yet professional tone and always ready to respond. I'm going to provide you with information and a question. here is the question: " + question +
+            " which you should respond to considering the context I give you above. You need to give me one or more paragraphs by rearranging the information I provide, attempting to answer the question, and "
+            "I will also provide you with information and context to solve the question, and you must return the answer in a paragraph briefing the information provided. "
+            "adding any other knowledge you have on the topic. The context information is as follows: " + text_data
         )
 
         try:
@@ -134,18 +134,32 @@ def main():
                     model=model,
                     prompt=chunk,
                     temperature=0,
-                    max_output_tokens=800,
+                    max_output_tokens=1000,
                 )
 
                 if completion.result is not None:
                     translated_chunk = completion.result
                     translated_output += translated_chunk
 
-            # Translate the complete response to Spanish before displaying
-            translated_output = translate_text(translated_output, target_language='es')
+            # Translate the complete response to English before displaying
+            translated_output = translate_text(translated_output, target_language='en')
+
+            # Combine the original question and the translated output
+            combined_text = question + "\n\n" + translated_output
+
+            # Feed the combined text back into the chatbot for a final response
+            final_response = palm.generate_text(
+                model=model,
+                prompt=combined_text,
+                temperature=0,
+                max_output_tokens=1000,
+            )
+
+            # Translate the final response to Spanish before displaying
+            final_response = translate_text(final_response.result, target_language='es')
 
             st.subheader('Response')
-            st.text_area("Response", translated_output, height=200)
+            st.text_area("Response", final_response, height=200)
 
         except Exception as e:
             st.error(f"Error: {str(e)}")
