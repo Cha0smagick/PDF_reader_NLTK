@@ -1,5 +1,6 @@
 import streamlit as st
 import PyPDF2
+import docx
 import nltk
 from nltk.tokenize import sent_tokenize, word_tokenize
 from nltk.corpus import stopwords
@@ -78,6 +79,10 @@ def load_text(file_content, file_type):
             for page_num in range(num_pages):
                 text += pdf_reader.pages[page_num].extract_text()
                 text += '\n'  # Add a line break between pages
+        elif file_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+            docx_reader = docx.Document(BytesIO(file_content))
+            for paragraph in docx_reader.paragraphs:
+                text += paragraph.text + '\n'
         else:
             text = file_content.decode("utf-8")
     except UnicodeDecodeError:
@@ -91,7 +96,7 @@ def main():
     st.sidebar.subheader('Text')
 
     # Use st.file_uploader to handle the file
-    uploaded_file = st.sidebar.file_uploader("Upload PDF or text file", type=["pdf", "txt", "doc", "docx"])
+    uploaded_file = st.sidebar.file_uploader("Upload PDF or text file", type=["pdf", "txt", "docx"])
 
     if uploaded_file is not None:
         try:
