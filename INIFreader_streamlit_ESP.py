@@ -49,13 +49,19 @@ def extract_named_entities(text):
         st.error(f"Error extracting named entities: {str(e)}")
     return named_entities
 
-def translate_text(text, target_language='en'):
-    try:
-        translation = translator.translate(text, dest=target_language)
-        return translation.text
-    except Exception as e:
-        st.error(f"Translation error: {str(e)}")
-        return f"Translation error: {str(e)}"
+def translate_text_chunked(text, target_language='en', chunk_size=5000):
+    chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+    translated_chunks = []
+
+    for chunk in chunks:
+        try:
+            translation = translator.translate(chunk, dest=target_language)
+            translated_chunks.append(translation.text)
+        except Exception as e:
+            st.error(f"Translation error: {str(e)}")
+            translated_chunks.append(f"Translation error: {str(e)}")
+
+    return ''.join(translated_chunks)
 
 def clean_special_characters(text):
     # Remove non-English special characters
@@ -79,7 +85,7 @@ def load_text(file_content, file_type):
     return text
 
 def main():
-    st.title('PDF Reader with Streamlit')
+    st.title('INIFReader - Multimedia Text File Reading Tool')
 
     # Tab for text reading
     st.sidebar.subheader('Text')
@@ -92,7 +98,14 @@ def main():
             file_content = uploaded_file.getvalue()
             file_type = uploaded_file.type
 
-            text_data = clean_special_characters(load_text(file_content, file_type))
+            # Translate text to English in chunks
+            translated_text = translate_text_chunked(load_text(file_content, file_type))
+
+            # Save the translated text to a file
+            with open("translated_text.txt", "w", encoding="utf-8") as f:
+                f.write(translated_text)
+
+            text_data = clean_special_characters(translated_text)
         except UnicodeDecodeError:
             st.error("Error decoding the file. Make sure the file is in text format.")
             st.stop()
@@ -107,6 +120,7 @@ def main():
     question = st.sidebar.text_area('Enter your question')
 
     if st.sidebar.button('Get Answer'):
+        question = translate_text_chunked(question, target_language='en')  # Translate user question to English
         question_preprocessed = preprocess_text(question)
         question_keywords = set(question_preprocessed.split())
 
@@ -114,7 +128,7 @@ def main():
         question_keywords.update(named_entities)
 
         chatbot_input = (
-            "Please act as a INIF enterprises chatbot personal assistant that answers questions with natural language with an Amiable yet professional tone and always ready to respond. I'm going to provide you with information and a question. here is the question: " + question +
+            "Please act as an INIF enterprises chatbot personal assistant that answers questions with natural language with an Amiable yet professional tone and always ready to respond. I'm going to provide you with information and a question. here is the question: " + question +
             " which you should respond to considering the context I give you above. You need to give me one or more paragraphs by rearranging the information I provide, attempting to answer the question, and "
             "I will also provide you with information and context to solve the question, and you must return the answer in a paragraph briefing the information provided. "
             "adding any other knowledge you have on the topic. The context information is as follows: " + text_data
@@ -128,7 +142,7 @@ def main():
 
             for chunk in chunks:
                 if not all(ord(char) < 128 for char in chunk):
-                    chunk = translate_text(chunk, target_language='en')
+                    chunk = translate_text_chunked(chunk, target_language='en')
 
                 completion = palm.generate_text(
                     model=model,
@@ -142,7 +156,7 @@ def main():
                     translated_output += translated_chunk
 
             # Translate the complete response to English before displaying
-            translated_output = translate_text(translated_output, target_language='en')
+            translated_output = translate_text_chunked(translated_output, target_language='en')
 
             # Combine the original question and the translated output
             combined_text = question + "\n\n" + translated_output
@@ -156,7 +170,7 @@ def main():
             )
 
             # Translate the final response to Spanish before displaying
-            final_response = translate_text(final_response.result, target_language='es')
+            final_response = translate_text_chunked(final_response.result, target_language='es')
 
             st.subheader('Response')
             st.text_area("Response", final_response, height=200)
