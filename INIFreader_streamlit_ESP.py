@@ -12,7 +12,7 @@ from io import BytesIO
 nltk.download('averaged_perceptron_tagger')
 
 # Configure Google API key
-palm.configure(api_key='AIzaSyCezVerubEzQc9JHz3V8hofpAlSIJXGxFQ')  # Replace with your actual API key
+palm.configure(api_key='your_google_api_key')  # Replace with your actual API key
 models = [m for m in palm.list_models() if 'generateText' in m.supported_generation_methods]
 
 if not models:
