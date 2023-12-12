@@ -71,6 +71,11 @@ def clean_special_characters(text):
     cleaned_text = ' '.join(cleaned_text.split())
     return cleaned_text
 
+def optimize_text_data(text_data):
+    # Remove multiple spaces and newlines
+    text_data = ' '.join(text_data.split())
+    return text_data
+
 def load_text(file_content, file_type):
     text = ''
     try:
@@ -113,6 +118,8 @@ def main():
                 f.write(translated_text)
 
             text_data = clean_special_characters(translated_text)
+            text_data = optimize_text_data(text_data)  # Optimize text_data
+
         except UnicodeDecodeError:
             st.error("Error decoding the file. Make sure the file is in text format.")
             st.stop()
