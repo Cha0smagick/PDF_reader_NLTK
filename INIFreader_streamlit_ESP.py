@@ -67,6 +67,8 @@ def translate_text_chunked(text, target_language='en', chunk_size=5000):
 def clean_special_characters(text):
     # Remove non-English special characters
     cleaned_text = ''.join(char if ord(char) < 128 else ' ' for char in text)
+    # Remove multiple spaces and newlines
+    cleaned_text = ' '.join(cleaned_text.split())
     return cleaned_text
 
 def load_text(file_content, file_type):
@@ -140,8 +142,9 @@ def main():
         )
 
         try:
-            chunk_size = 5000
-            chunks = [chatbot_input[i:i+chunk_size] for i in range(0, len(chatbot_input), chunk_size)]
+            # Adjust chunk size dynamically based on payload limit
+            chunk_size = min(5000, len(chatbot_input))
+            chunks = [chatbot_input[i:i + chunk_size] for i in range(0, len(chatbot_input), chunk_size)]
 
             translated_output = ""
 
@@ -175,10 +178,12 @@ def main():
             )
 
             # Translate the final response to Spanish before displaying
-            final_response = translate_text_chunked(final_response.result, target_language='es')
-
-            st.subheader('Response')
-            st.text_area("Response", final_response, height=200)
+            if final_response.result is not None:
+                final_response = translate_text_chunked(final_response.result, target_language='es')
+                st.subheader('Response')
+                st.text_area("Response", final_response, height=200)
+            else:
+                st.error("La pregunta que esta realizando puede que vaya en contra de las políticas de Google Bard e INIF. Por favor, reformule su pregunta sin temas no permitidos o pregunte algo diferente. Para mas informacion consulte: https://policies.google.com/terms/generative-ai/use-policy o www.inif.com.co/laura-chatbot/use-policy")
 
         except Exception as e:
             st.error(f"Error: {str(e)}")
