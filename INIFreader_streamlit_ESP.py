@@ -2,7 +2,7 @@ import streamlit as st
 import PyPDF2
 import docx
 import nltk
-from nltk.tokenize import sent_tokenize, word_tokenize
+from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
 from googletrans import Translator
@@ -12,7 +12,7 @@ from io import BytesIO
 nltk.download('averaged_perceptron_tagger')
 
 # Configure Google API key
-palm.configure(api_key='your_google_api_key')  # Replace with your actual API key
+palm.configure(api_key='AIzaSyCezVerubEzQc9JHz3V8hofpAlSIJXGxFQ')  # Replace with your actual API key
 models = [m for m in palm.list_models() if 'generateText' in m.supported_generation_methods]
 
 if not models:
@@ -38,18 +38,6 @@ def preprocess_text(text):
     words = [word for word in words if word not in stop_words]
     return " ".join(words)
 
-def extract_named_entities(text):
-    named_entities = set()
-    try:
-        ne_tree = nltk.ne_chunk(nltk.pos_tag(word_tokenize(text)))
-        for subtree in ne_tree:
-            if isinstance(subtree, nltk.tree.Tree):
-                entity = " ".join([leaf[0] for leaf in subtree.leaves()])
-                named_entities.add(entity)
-    except Exception as e:
-        st.error(f"Error extracting named entities: {str(e)}")
-    return named_entities
-
 def translate_text_chunked(text, target_language='en', chunk_size=5000):
     chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
     translated_chunks = []
@@ -71,10 +59,83 @@ def clean_special_characters(text):
     cleaned_text = ' '.join(cleaned_text.split())
     return cleaned_text
 
-def optimize_text_data(text_data):
-    # Remove multiple spaces and newlines
-    text_data = ' '.join(text_data.split())
-    return text_data
+def optimize_text_data(text_data, question_keywords, context_window=100):
+    # Tokenize the text for processing
+    words = word_tokenize(text_data.lower())
+    
+    # Find indices of relevant keywords in the text
+    keyword_indices = [i for i, word in enumerate(words) if word in question_keywords]
+
+    # Include a context window around each keyword
+    start_indices = [max(0, idx - context_window) for idx in keyword_indices]
+    end_indices = [min(len(words), idx + context_window) for idx in keyword_indices]
+
+    # Extract the relevant portion of the text
+    relevant_text = ' '.join(' '.join(words[start:end]) for start, end in zip(start_indices, end_indices))
+
+    return relevant_text
+
+def generate_response(question, text_data):
+    question = translate_text_chunked(question, target_language='en')  # Translate user question to English
+    question_preprocessed = preprocess_text(question)
+    question_keywords = set(question_preprocessed.split())
+
+    # Optimize text_data based on question keywords
+    text_data = optimize_text_data(text_data, question_keywords)
+
+    chatbot_input = (
+        "Please act as an INIF enterprises chatbot personal assistant that answers questions with natural language with an Amiable yet professional tone and always ready to respond. I'm going to provide you with information and a question. here is the question: " + question +
+        " which you should respond to considering the context I give you above. You need to give me one or more paragraphs by rearranging the information I provide, attempting to answer the question, and "
+        "I will also provide you with information and context to solve the question, and you must return the answer in a paragraph briefing the information provided. "
+        "adding any other knowledge you have on the topic. The context information is as follows: " + text_data
+    )
+
+    try:
+        # Adjust chunk size dynamically based on payload limit
+        chunk_size = min(5000, len(chatbot_input))
+        chunks = [chatbot_input[i:i + chunk_size] for i in range(0, len(chatbot_input), chunk_size)]
+
+        translated_output = ""
+
+        for chunk in chunks:
+            if not all(ord(char) < 128 for char in chunk):
+                chunk = translate_text_chunked(chunk, target_language='en')
+
+            completion = palm.generate_text(
+                model=model,
+                prompt=chunk,
+                temperature=0,
+                max_output_tokens=1000,
+            )
+
+            if completion.result is not None:
+                translated_chunk = completion.result
+                translated_output += translated_chunk
+
+        # Translate the complete response to English before displaying
+        translated_output = translate_text_chunked(translated_output, target_language='en')
+
+        # Combine the original question and the translated output
+        combined_text = question + "\n\n" + translated_output
+
+        # Feed the combined text back into the chatbot for a final response
+        final_response = palm.generate_text(
+            model=model,
+            prompt=combined_text,
+            temperature=0,
+            max_output_tokens=1000,
+        )
+
+        # Translate the final response to Spanish before displaying
+        if final_response.result is not None:
+            final_response = translate_text_chunked(final_response.result, target_language='es')
+            st.subheader('Response')
+            st.text_area("Response", final_response, height=200)
+        else:
+            st.error("La pregunta que esta realizando puede que vaya en contra de las políticas de Google Bard e INIF. Por favor, reformule su pregunta sin temas no permitidos o pregunte algo diferente. Para mas informacion consulte: https://policies.google.com/terms/generative-ai/use-policy o www.inif.com.co/laura-chatbot/use-policy")
+
+    except Exception as e:
+        st.error(f"Error: {str(e)}")
 
 def load_text(file_content, file_type):
     text = ''
@@ -118,7 +179,6 @@ def main():
                 f.write(translated_text)
 
             text_data = clean_special_characters(translated_text)
-            text_data = optimize_text_data(text_data)  # Optimize text_data
 
         except UnicodeDecodeError:
             st.error("Error decoding the file. Make sure the file is in text format.")
@@ -134,66 +194,7 @@ def main():
     question = st.sidebar.text_area('Enter your question')
 
     if st.sidebar.button('Get Answer'):
-        question = translate_text_chunked(question, target_language='en')  # Translate user question to English
-        question_preprocessed = preprocess_text(question)
-        question_keywords = set(question_preprocessed.split())
-
-        named_entities = extract_named_entities(question)
-        question_keywords.update(named_entities)
-
-        chatbot_input = (
-            "Please act as an INIF enterprises chatbot personal assistant that answers questions with natural language with an Amiable yet professional tone and always ready to respond. I'm going to provide you with information and a question. here is the question: " + question +
-            " which you should respond to considering the context I give you above. You need to give me one or more paragraphs by rearranging the information I provide, attempting to answer the question, and "
-            "I will also provide you with information and context to solve the question, and you must return the answer in a paragraph briefing the information provided. "
-            "adding any other knowledge you have on the topic. The context information is as follows: " + text_data
-        )
-
-        try:
-            # Adjust chunk size dynamically based on payload limit
-            chunk_size = min(5000, len(chatbot_input))
-            chunks = [chatbot_input[i:i + chunk_size] for i in range(0, len(chatbot_input), chunk_size)]
-
-            translated_output = ""
-
-            for chunk in chunks:
-                if not all(ord(char) < 128 for char in chunk):
-                    chunk = translate_text_chunked(chunk, target_language='en')
-
-                completion = palm.generate_text(
-                    model=model,
-                    prompt=chunk,
-                    temperature=0,
-                    max_output_tokens=1000,
-                )
-
-                if completion.result is not None:
-                    translated_chunk = completion.result
-                    translated_output += translated_chunk
-
-            # Translate the complete response to English before displaying
-            translated_output = translate_text_chunked(translated_output, target_language='en')
-
-            # Combine the original question and the translated output
-            combined_text = question + "\n\n" + translated_output
-
-            # Feed the combined text back into the chatbot for a final response
-            final_response = palm.generate_text(
-                model=model,
-                prompt=combined_text,
-                temperature=0,
-                max_output_tokens=1000,
-            )
-
-            # Translate the final response to Spanish before displaying
-            if final_response.result is not None:
-                final_response = translate_text_chunked(final_response.result, target_language='es')
-                st.subheader('Response')
-                st.text_area("Response", final_response, height=200)
-            else:
-                st.error("La pregunta que esta realizando puede que vaya en contra de las políticas de Google Bard e INIF. Por favor, reformule su pregunta sin temas no permitidos o pregunte algo diferente. Para mas informacion consulte: https://policies.google.com/terms/generative-ai/use-policy o www.inif.com.co/laura-chatbot/use-policy")
-
-        except Exception as e:
-            st.error(f"Error: {str(e)}")
+        generate_response(question, text_data)
 
 if __name__ == '__main__':
     main()
